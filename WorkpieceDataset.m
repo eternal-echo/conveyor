@@ -36,5 +36,12 @@ classdef WorkpieceDataset
                    (obj.dataset_df.RelativeTime <= end_time);
             result = obj.dataset_df(mask, :);
         end
+        
+        function [time, signal] = get_time_and_signal(obj, workpiece_id, measurement_id)
+            % 获取特定工件的单次测量数据中的时间和信号
+            subset = obj.get_single_measurement(workpiece_id, measurement_id);
+            time = subset.RelativeTime;
+            signal = subset.CH1;
+        end
     end
 end
