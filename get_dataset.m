@@ -1,8 +1,8 @@
 %% 加载测试的数据集
-% 加载数据集
+data_path = 'data';
 
 % 创建数据集对象
-data_loader = ProcessedDataLoader('dataset.csv');
+data_loader = ProcessedDataLoader(fullfile(data_path, 'dataset.csv'));
 
 dataset_df = data_loader.getDataset();
 
@@ -44,4 +44,5 @@ ylabel('Amplitude');
 grid on;
 
 
-save('test_data.mat', 'time', 'signal', 'workpiece_ids', 'measurement_ids', 'data_loader');
+% save('test_data.mat', 'data_loader', 'time', 'signal', 'workpiece_ids', 'measurement_ids', 'workpiece_id', 'measurement_id');
+save(fullfile(data_path, 'test_data.mat'), 'data_loader', 'time', 'signal', 'workpiece_ids', 'measurement_ids', 'workpiece_id', 'measurement_id');
