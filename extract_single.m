@@ -1,6 +1,7 @@
 addpath('src');
 addpath('data');
 data_path = 'data';
+result_path = 'results';
 
 % Load the data
 load('test_data.mat');
@@ -62,7 +63,7 @@ for k = 1:size(valid_intervals, 1)
 end
 
 % 保存数据集
-writetable(data_loader.dataset_df, fullfile(data_path, 'dataset_valid.csv'));
+writetable(data_loader.dataset_df, fullfile(result_path, 'dataset_valid.csv'));
 
 % 获取有效区间
 valid_intervals = data_loader.getValidIntervals(workpiece_id, measurement_id);
