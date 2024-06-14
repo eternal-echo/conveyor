@@ -1,5 +1,5 @@
-/results/*.png
-/results/*.jpg
-/results/*.jpeg
-/results/*.gif
-/results/*.bmp
+/results/**/*.png
+/results/**/*.jpg
+/results/**/*.jpeg
+/results/**/*.gif
+/results/**/*.bmp
