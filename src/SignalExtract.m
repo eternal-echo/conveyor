@@ -20,7 +20,7 @@ classdef SignalExtract
             p = inputParser;
             addOptional(p, 'windowSize', 40);
             addOptional(p, 'hopSize', 1);
-            addOptional(p, 'closeKernelSize', 360);
+            addOptional(p, 'closeKernelSize', 240);
             parse(p, varargin{:});
             windowSize = p.Results.windowSize;
             hopSize = p.Results.hopSize;
@@ -118,13 +118,24 @@ classdef SignalExtract
         end
 
         % Valid Interval Detection
-        function valid_intervals = detectValidIntervals(envelope_signal, time, peak_indices)
+        function [valid_peaks_idx, valid_intervals] = detectValidIntervals(envelope_signal, time, peak_indices, peak_intervals)
             valid_intervals = zeros(length(peak_indices), 2);
+            valid_peaks_idx = zeros(length(peak_indices), 1);
             search_range = 50;
             grad = gradient(envelope_signal);
+            % 检查peak_intervals和peak_indices是否大小一致
+            if size(peak_intervals, 1) ~= length(peak_indices)
+                error('The number of peak intervals and peak indices should be the same.');
+            end
             for i = 1:length(peak_indices)
                 peak_idx = peak_indices(i);
-                
+                peak_interval = peak_intervals(i, :);
+
+                % 找到当前波峰区域的最大值索引为peak_idx
+                [~, max_idx] = max(envelope_signal(time >= peak_interval(1) & time <= peak_interval(2)));
+                peak_idx = find(time >= peak_interval(1), 1) + max_idx - 1;
+                valid_peaks_idx(i) = peak_idx;
+
                 % Find the left trough
                 left_trough = peak_idx;
                 while left_trough > search_range

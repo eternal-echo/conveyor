@@ -27,11 +27,11 @@ for i = 1:length(workpiece_ids)
         hopSize = 1;
         [energy, autocorr, autocorr1D, combined_feature] = SignalExtract.extractFeatures(denoised_signal, time, 'windowSize', windowSize, 'hopSize', hopSize);
         % 3. 对特征进行峰值检测和间隔合并
-        peak_boundaries_ratio = 0.3;
+        peak_boundaries_ratio = 0.15;
         [peaks, locs, locs_idx, merged_intervals] = SignalExtract.detectFeaturesPeaks(combined_feature, time, 'peakBoundariesRatio', peak_boundaries_ratio);
         % 4. 有效区间检测
         envelope_signal = SignalExtract.extractEnvelope(signal);
-        valid_intervals = SignalExtract.detectValidIntervals(envelope_signal, time, locs_idx);
+        [valid_peaks_idx, valid_intervals] = SignalExtract.detectValidIntervals(envelope_signal, time, locs_idx, merged_intervals);
 
         % 保存结果
         for k = 1:size(valid_intervals, 1)
