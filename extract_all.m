@@ -2,9 +2,14 @@ addpath('src');
 addpath('data');
 data_path = 'data';
 result_path = 'results';
+extract_path = fullfile(result_path, 'extract');
+% 创建保存结果的文件夹
+if ~exist(extract_path, 'dir')
+    mkdir(extract_path);
+end
 
 % 加载数据集
-data_loader = ProcessedDataLoader(fullfile(data_path, 'dataset.csv'));
+data_loader = DataLoader(fullfile(data_path, 'dataset.csv'));
 data_loader.dataset_df.ValidCount = -1 * ones(height(data_loader.dataset_df), 1);
 
 % 遍历每个工件和测量
@@ -29,7 +34,7 @@ for i = 1:length(workpiece_ids)
         [energy, autocorr, autocorr1D, combined_feature] = SignalExtract.extractFeatures(denoised_signal, time, 'windowSize', windowSize, 'hopSize', hopSize);
         
         %% 3. 对特征进行峰值检测和间隔合并
-        peak_boundaries_ratio = 0.15;
+        peak_boundaries_ratio = 0.3;
         [peaks, locs, locs_idx, merged_intervals] = SignalExtract.detectFeaturesPeaks(combined_feature, time, 'peakBoundariesRatio', peak_boundaries_ratio);
         
         %% 4. 有效区间检测
@@ -60,7 +65,7 @@ for i = 1:length(workpiece_ids)
             fill([start_time, end_time, end_time, start_time], [min(signal), min(signal), max(signal), max(signal)], 'r', 'FaceAlpha', 0.3);
         end
         % 保存图像
-        saveas(gcf, fullfile(result_path, ['workpiece_', num2str(workpiece_id), '_measurement_', num2str(measurement_id), '.png']));
+        saveas(gcf, fullfile(extract_path, ['workpiece_', num2str(workpiece_id), '_measurement_', num2str(measurement_id), '.png']));
         close(gcf);
     end
 end
