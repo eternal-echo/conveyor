@@ -1,10 +1,10 @@
-classdef ProcessedDataLoader
+classdef DataLoader
     properties
         dataset_df
     end
     
     methods
-        function obj = ProcessedDataLoader(file_path)
+        function obj = DataLoader(file_path)
             obj.dataset_df = readtable(file_path);
         end
         
@@ -55,10 +55,10 @@ classdef ProcessedDataLoader
                    (obj.dataset_df.ValidCount >= 0);
             valid_data = obj.dataset_df(mask, :);
             valid_ids = unique(valid_data.ValidCount)';
-            intervals = zeros(length(valid_ids), 2);
+            intervals = zeros(2, length(valid_ids));
             for i = 1:length(valid_ids)
                 id = valid_ids(i);
-                intervals(i, :) = [min(valid_data.RelativeTime(valid_data.ValidCount == id)), ...
+                intervals(:, i) = [min(valid_data.RelativeTime(valid_data.ValidCount == id)), ...
                                    max(valid_data.RelativeTime(valid_data.ValidCount == id))];
             end
         end

@@ -62,26 +62,11 @@ classdef SignalExtract
             [merged_intervals, peaks, locs, locs_idx] = SignalExtract.mergeIntervals(peak_intervals, peaks, locs, locs_idx);
         end
 
-        % % Function to plot combined feature with peak intervals
-        % function plotCombinedFeatureWithIntervals(time, combined_feature, peaks, locs, intervals, height_threshold)
-        %     figure;
-        %     plot(time, combined_feature);
-        %     title('加权求和特征及其波峰区间');
-        %     xlabel('时间 (秒)');
-        %     ylabel('幅度');
-        %     grid on;
-        %     hold on;
-        %     plot(locs, peaks, 'ro', 'MarkerSize', 5, 'MarkerFaceColor', 'r');
-        %     for i = 1:size(intervals, 1)
-        %         plot([intervals(i, 1), intervals(i, 2)], [height_threshold * peaks(i), height_threshold * peaks(i)], 'k', 'LineWidth', 2);
-        %     end
-        % end
-
         % Function to plot denoised signal with peak intervals
         function plotSignalWithIntervals(time, denoised_signal, intervals, varargin)
             p = inputParser;
             addOptional(p, 'title', '信号及其波峰区间');
-            addOptional(p, 'markers', []); % 可选参数：标记点，格式为 [时间, 值]
+            addOptional(p, 'markers', []); % 可选参数：标记点，格式为 [时间; 值]
             parse(p, varargin{:});
             title_str = p.Results.title;
             markers = p.Results.markers;
@@ -93,19 +78,21 @@ classdef SignalExtract
             ylabel('幅度');
             grid on;
             hold on;
-            for i = 1:size(intervals, 1)
-                % rectangle('Position', [intervals(i, 1), min(denoised_signal), intervals(i, 2) - intervals(i, 1), max(denoised_signal) - min(denoised_signal)], 'FaceColor', 'none', 'EdgeColor', [0.8, 0.8, 0.8]);
-                fill([intervals(i, 1), intervals(i, 2), intervals(i, 2), intervals(i, 1)], [min(denoised_signal), min(denoised_signal), max(denoised_signal), max(denoised_signal)], 'r', 'FaceAlpha', 0.3);
+            for i = 1:size(intervals, 2)
+                fill([intervals(1, i), intervals(2, i), intervals(2, i), intervals(1, i)], ...
+                    [min(denoised_signal), min(denoised_signal), max(denoised_signal), max(denoised_signal)], ...
+                    'y', 'FaceAlpha', 0.3);
             end
 
             % 绘制标记点
             if ~isempty(markers)
-                for j = 1:size(markers, 1)
-                    plot(markers(j, 1), markers(j, 2), 'rx', 'MarkerSize', 8, 'LineWidth', 2);
+                for j = 1:size(markers, 2)
+                    plot(markers(1, j), markers(2, j), 'rx', 'MarkerSize', 8, 'LineWidth', 1);
                 end
             end
             hold off;
         end
+
 
         %% 4. 有效区间检测
         % Signal Envelope Extraction
@@ -118,22 +105,23 @@ classdef SignalExtract
         end
 
         % Valid Interval Detection
-        function [valid_peaks_idx, valid_intervals] = detectValidIntervals(envelope_signal, time, peak_indices, peak_intervals)
-            valid_intervals = zeros(length(peak_indices), 2);
-            valid_peaks_idx = zeros(length(peak_indices), 1);
+        function [valid_peaks_idx, valid_intervals] = detectValidIntervals(envelope_signal, time, peak_indices, peak_intervals, varargin)
+            valid_intervals = zeros(2, length(peak_indices));
+            valid_peaks_idx = zeros(1, length(peak_indices));
             search_range = 50;
             grad = gradient(envelope_signal);
             % 检查peak_intervals和peak_indices是否大小一致
-            if size(peak_intervals, 1) ~= length(peak_indices)
+            if size(peak_intervals, 2) ~= length(peak_indices)
                 error('The number of peak intervals and peak indices should be the same.');
             end
             for i = 1:length(peak_indices)
                 peak_idx = peak_indices(i);
-                peak_interval = peak_intervals(i, :);
+                peak_interval = peak_intervals(:, i);
 
                 % 找到当前波峰区域的最大值索引为peak_idx
-                [~, max_idx] = max(envelope_signal(time >= peak_interval(1) & time <= peak_interval(2)));
-                peak_idx = find(time >= peak_interval(1), 1) + max_idx - 1;
+                time_mask = time >= peak_interval(1) & time <= peak_interval(2);
+                [~, max_idx] = max(envelope_signal(time_mask));
+                peak_idx = find(time_mask, 1, 'first') + max_idx - 1;
                 valid_peaks_idx(i) = peak_idx;
 
                 % Find the left trough
@@ -162,7 +150,7 @@ classdef SignalExtract
                     right_trough = length(envelope_signal);
                 end
                 
-                valid_intervals(i, :) = [time(left_trough), time(right_trough)];
+                valid_intervals(:, i) = [time(left_trough); time(right_trough)];
             end
         end
     end
@@ -190,43 +178,43 @@ classdef SignalExtract
                 end
                 right_ips(i) = time(right_base);
             end
-            peak_intervals = [left_ips; right_ips]';
+            peak_intervals = [left_ips; right_ips];
         end
 
         % Function to merge intervals and update peaks, locs, locs_idx
         function [merged_intervals, updated_peaks, updated_locs, updated_locs_idx] = mergeIntervals(peak_intervals, peaks, locs, locs_idx)
-            merged_intervals = [];
+            merged_intervals = zeros(2, 0); % 初始化为2xN矩阵
             updated_peaks = [];
             updated_locs = [];
             updated_locs_idx = [];
             
             if ~isempty(peak_intervals)
-                peak_intervals = sortrows(peak_intervals);
-                current_interval = peak_intervals(1, :);
+                peak_intervals = sortrows(peak_intervals')'; % 确保按起始时间排序
+                current_interval = peak_intervals(:, 1);
                 current_peaks = peaks(1);
                 current_locs = locs(1);
                 current_locs_idx = locs_idx(1);
                 
-                for i = 2:size(peak_intervals, 1)
-                    if peak_intervals(i, 1) <= current_interval(2)
-                        current_interval(2) = max(current_interval(2), peak_intervals(i, 2));
+                for i = 2:size(peak_intervals, 2)
+                    if peak_intervals(1, i) <= current_interval(2)
+                        current_interval(2) = max(current_interval(2), peak_intervals(2, i));
                         current_peaks = [current_peaks, peaks(i)];
                         current_locs = [current_locs, locs(i)];
                         current_locs_idx = [current_locs_idx, locs_idx(i)];
                     else
-                        merged_intervals = [merged_intervals; current_interval];
+                        merged_intervals = [merged_intervals, current_interval];
                         updated_peaks = [updated_peaks, max(current_peaks)];
                         updated_locs = [updated_locs, mean(current_locs)];
                         updated_locs_idx = [updated_locs_idx, round(mean(current_locs_idx))];
                         
-                        current_interval = peak_intervals(i, :);
+                        current_interval = peak_intervals(:, i);
                         current_peaks = peaks(i);
                         current_locs = locs(i);
                         current_locs_idx = locs_idx(i);
                     end
                 end
                 
-                merged_intervals = [merged_intervals; current_interval];
+                merged_intervals = [merged_intervals, current_interval];
                 updated_peaks = [updated_peaks, max(current_peaks)];
                 updated_locs = [updated_locs, mean(current_locs)];
                 updated_locs_idx = [updated_locs_idx, round(mean(current_locs_idx))];

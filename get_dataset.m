@@ -2,7 +2,7 @@
 data_path = 'data';
 
 % 创建数据集对象
-data_loader = ProcessedDataLoader(fullfile(data_path, 'dataset.csv'));
+data_loader = DataLoader(fullfile(data_path, 'dataset.csv'));
 
 dataset_df = data_loader.getDataset();
 
@@ -26,8 +26,8 @@ measurement_id = 0;
 disp('第一个工件的第一个测量数据：');
 measurement_data = data_loader.getMeasurementData(workpiece_id, measurement_id);
 
-time = measurement_data.RelativeTime;
-signal = measurement_data.CH1;
+time = measurement_data.RelativeTime';
+signal = measurement_data.CH1';
 
 % 显示信号和时间数据
 disp('时间数据：');
