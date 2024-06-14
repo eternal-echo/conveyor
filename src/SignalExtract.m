@@ -99,17 +99,24 @@ classdef SignalExtract
         function envelope_signal = extractEnvelope(signal)
             abs_signal = abs(signal);
             [envelope_signal, ~] = envelope(abs_signal, 50, 'rms');
-            se = strel('disk', 120);
+            se = strel('disk', 80);
             envelope_signal = imclose(envelope_signal, se);
             envelope_signal = SignalExtract.normalizeFeature(envelope_signal);
         end
 
         % Valid Interval Detection
         function [valid_peaks_idx, valid_intervals] = detectValidIntervals(envelope_signal, time, peak_indices, peak_intervals, varargin)
+            % Initialize optional parameters
+            p = inputParser;
+            addOptional(p, 'threshold', 0.3); % 可选参数：阈值
+            parse(p, varargin{:});
+            threshold = p.Results.threshold;
+
             valid_intervals = zeros(2, length(peak_indices));
             valid_peaks_idx = zeros(1, length(peak_indices));
             search_range = 50;
             grad = gradient(envelope_signal);
+            
             % 检查peak_intervals和peak_indices是否大小一致
             if size(peak_intervals, 2) ~= length(peak_indices)
                 error('The number of peak intervals and peak indices should be the same.');
@@ -128,7 +135,7 @@ classdef SignalExtract
                 left_trough = peak_idx;
                 while left_trough > search_range
                     % Check if the gradient is zero and the envelope signal is below a threshold
-                    if (all(grad(left_trough-search_range:left_trough) == 0) && envelope_signal(left_trough) < 0.4)
+                    if (all(grad(left_trough-search_range:left_trough) == 0) && envelope_signal(left_trough) < threshold * envelope_signal(peak_idx))
                         break;
                     end
                     left_trough = left_trough - 1;
@@ -141,7 +148,7 @@ classdef SignalExtract
                 right_trough = peak_idx;
                 while right_trough < length(envelope_signal) - search_range
                     % Check if the gradient is zero and the envelope signal is below a threshold
-                    if (all(grad(right_trough:right_trough+search_range) == 0) && envelope_signal(right_trough) < 0.4)
+                    if (all(grad(right_trough:right_trough+search_range) == 0) && envelope_signal(right_trough) < threshold * envelope_signal(peak_idx))
                         break;
                     end
                     right_trough = right_trough + 1;
