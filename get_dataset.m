@@ -1,3 +1,6 @@
+addpath('src');
+addpath('data');
+
 %% 加载测试的数据集
 data_path = 'data';
 
@@ -19,7 +22,7 @@ for workpiece_id = workpiece_ids
 end
 
 % 获取信号和时间数据
-workpiece_id = 8;
+workpiece_id = 1;
 measurement_id = 0;
 
 % 示例：获取第一个工件的第一个测量数据

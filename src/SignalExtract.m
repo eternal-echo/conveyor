@@ -51,7 +51,7 @@ classdef SignalExtract
             se = strel('disk', closeKernelSize);
             combined_feature = imclose(combined_feature, se);
             
-            [peaks, locs] = findpeaks(combined_feature, time, 'MinPeakHeight', 0.1, 'MinPeakDistance', 1, 'MinPeakProminence', 0.05, 'MinPeakWidth', 0.01);
+            [peaks, locs] = findpeaks(combined_feature, time, 'MinPeakHeight', 0.02, 'MinPeakDistance', 1.5, 'MinPeakProminence', 0.01, 'MinPeakWidth', 0.01);
             [~, locs_idx] = ismember(locs, time);
             intervals = SignalExtract.getPeakIntervals(locs_idx, combined_feature, time, height_threshold);
             % [intervals, peaks, locs, locs_idx] = SignalExtract.processIntervals(intervals, peaks, locs, locs_idx);
