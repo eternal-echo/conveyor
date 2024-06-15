@@ -68,37 +68,52 @@ classdef SignalExtract
         end
 
         %  利用已经提取的特征峰值区间，重新寻找更准确的包络线峰值区间
-        function [valid_peaks_idx, valid_intervals] = detectValidIntervals(envelope_signal, time, peak_indices, peak_intervals, varargin)
+        function [valid_peaks_idx, valid_time_intervals] = detectValidIntervals(envelope_signal, time, peak_indices, peak_time_intervals, varargin)
             % Initialize optional parameters
             p = inputParser;
             addOptional(p, 'threshold', 0.3); % 可选参数：阈值
             parse(p, varargin{:});
             threshold = p.Results.threshold;
 
-            % 检查peak_intervals和peak_indices是否大小一致
-            if size(peak_intervals, 2) ~= length(peak_indices)
+            % 检查peak_time_intervals和peak_indices是否大小一致
+            if size(peak_time_intervals, 2) ~= length(peak_indices)
                 error('The number of peak intervals and peak indices should be the same.');
             end
 
-            valid_peaks_idx = zeros(1, length(peak_indices));
-            valid_intervals = zeros(2, length(peak_indices));
+            valid_peaks_idx = [];
+            valid_time_intervals = [];
             
             search_range = 50;
             grad = gradient(envelope_signal);
             for i = 1:length(peak_indices)
-                peak_interval = peak_intervals(:, i);
+                peak_interval = peak_time_intervals(:, i);
+                % 当区间不被上一个区间完全包含
+                if ( ~((~isempty(valid_time_intervals)) && (peak_interval(1) > valid_time_intervals(1, end) && peak_interval(2) < valid_time_intervals(2, end))) )
+                    % 找到当前波峰区域的最大值索引为peak_idx
+                    time_mask = time >= peak_interval(1) & time <= peak_interval(2);
+                    [~, max_idx] = max(envelope_signal(time_mask));
+                    peak_idx = find(time_mask, 1, 'first') + max_idx - 1;
+                    
+                    % 找到左右拐点
+                    left_trough_idx = SignalExtract.findLeftTrough(envelope_signal, grad, peak_idx, threshold, search_range);
+                    right_trough_idx = SignalExtract.findRightTrough(envelope_signal, grad, peak_idx, threshold, search_range);
 
-                % 找到当前波峰区域的最大值索引为peak_idx
-                time_mask = time >= peak_interval(1) & time <= peak_interval(2);
-                [~, max_idx] = max(envelope_signal(time_mask));
-                peak_idx = find(time_mask, 1, 'first') + max_idx - 1;
-                valid_peaks_idx(i) = peak_idx;
-
-                left_trough = SignalExtract.findLeftTrough(envelope_signal, grad, peak_idx, threshold, search_range);
-                right_trough = SignalExtract.findRightTrough(envelope_signal, grad, peak_idx, threshold, search_range);
-                
-                valid_intervals(:, i) = [time(left_trough); time(right_trough)];
+                    % % 与上一个区间进行比较，如果重叠
+                    % if ~isempty(valid_time_intervals) && (time(left_trough_idx) < valid_time_intervals(2, end))
+                    %     % 两个重叠区间中选择峰值更高的区间
+                    %     if envelope_signal(peak_idx) > envelope_signal(valid_peaks_idx(end))
+                    %         valid_peaks_idx(end) = peak_idx;
+                    %         valid_time_intervals(:, end) = [time(left_trough_idx); time(right_trough_idx)];
+                    %     end
+                    % % 不重叠则添加为新区间
+                    % else
+                    %     valid_peaks_idx = [valid_peaks_idx, peak_idx];
+                    %     valid_time_intervals = [valid_time_intervals, [time(left_trough_idx); time(right_trough_idx)]];
+                    % end
+                end
             end
+
+            [valid_time_intervals, valid_peaks_idx, ~, ~] = SignalExtract.processIntervals(peak_time_intervals, peak_indices, peak_indices, peak_indices);
         end
 
         
@@ -182,23 +197,6 @@ classdef SignalExtract
 
         % Function to get peak intervals
         function peak_intervals = getPeakIntervals(locs_idx, signal, time, height_threshold)
-            % left_ips = zeros(1, length(locs_idx));
-            % right_ips = zeros(1, length(locs_idx));
-            % for i = 1:length(locs_idx)
-            %     left_base = locs_idx(i);
-            %     while left_base > 1 && signal(left_base) > height_threshold * peaks(i)
-            %         left_base = left_base - 1;
-            %     end
-            %     left_ips(i) = time(left_base);
-
-            %     right_base = locs_idx(i);
-            %     while right_base < length(time) && signal(right_base) > height_threshold * peaks(i)
-            %         right_base = right_base + 1;
-            %     end
-            %     right_ips(i) = time(right_base);
-            % end
-            % peak_intervals = [left_ips; right_ips];
-
             grad = gradient(signal);
             peak_intervals = zeros(2, length(locs_idx));
             for i = 1:length(locs_idx)
@@ -209,94 +207,60 @@ classdef SignalExtract
         end
         
 
-        % function [updated_intervals, updated_peaks, updated_locs, updated_locs_idx] = processIntervals(peak_intervals, peaks, locs, locs_idx)
-        %     min_distance = 2; % 最小间距2秒
-        %     num_peaks = length(peaks);
+        % 筛选出不重叠的波峰区间，若间距小于1秒或区间重叠，则优先选择峰值更高的区间
+        function [updated_intervals, updated_peaks, updated_locs, updated_locs_idx] = processIntervals(peak_intervals, peaks, locs, locs_idx)
+            min_distance = 1; % 最小间距1秒
+            num_peaks = length(peaks);
             
-        %     % 初始化输出
-        %     updated_intervals = [];
-        %     updated_peaks = [];
-        %     updated_locs = [];
-        %     updated_locs_idx = [];
+            % 初始化输出
+            updated_intervals = [];
+            updated_peaks = [];
+            updated_locs = [];
+            updated_locs_idx = [];
             
-        %     % 按峰值从大到小排序
-        %     [sorted_peaks, sort_idx] = sort(peaks, 'descend');
-        %     sorted_intervals = peak_intervals(:, sort_idx);
-        %     sorted_locs = locs(sort_idx);
-        %     sorted_locs_idx = locs_idx(sort_idx);
+            % 按左区间从小到大排序
+            [sorted_intervals, sort_idx] = sort(peak_intervals(1, :), 'ascend');
+            sorted_intervals = peak_intervals(:, sort_idx);
+            sorted_peaks = peaks(sort_idx);
+            sorted_locs = locs(sort_idx);
+            sorted_locs_idx = locs_idx(sort_idx);
             
-        %     % 用于存储已经选择的峰值时间位置
-        %     selected_locs = [];
+            % 用于存储已经选择的峰值时间位置
+            selected_locs = [];
             
-        %     for i = 1:num_peaks
-        %         current_interval = sorted_intervals(:, i);
-        %         current_peak = sorted_peaks(i);
-        %         current_loc = sorted_locs(i);
-        %         current_loc_idx = sorted_locs_idx(i);
+            for i = 1:num_peaks
+                current_interval = sorted_intervals(:, i);
+                current_peak = sorted_peaks(i);
+                current_loc = sorted_locs(i);
+                current_loc_idx = sorted_locs_idx(i);
                 
-        %         % 检查当前峰值时间位置与已选择的峰值时间位置的差距是否小于2秒
-        %         is_too_close = any(abs(selected_locs - current_loc) < min_distance);
+                % 检查当前峰值时间位置与上一个峰值时间位置的差距是否小于2秒
+                is_too_close = ~isempty(selected_locs) && (abs(current_loc - selected_locs(end)) < min_distance);
                 
-        %         % 检查当前区间是否与已选择的区间重叠
-        %         is_overlapping = false;
-        %         for j = 1:size(updated_intervals, 2)
-        %             if (current_interval(1) <= updated_intervals(2, j) && current_interval(2) >= updated_intervals(1, j))
-        %                 is_overlapping = true;
-        %                 break;
-        %             end
-        %         end
+                % 检查当前区间是否与上一个区间重叠
+                is_overlapping = ~isempty(updated_intervals) && (current_interval(1) <= updated_intervals(2, end));
                 
-        %         % 如果不太近且不重叠，则加入输出列表
-        %         if ~is_too_close && ~is_overlapping
-        %             updated_intervals = [updated_intervals, current_interval];
-        %             updated_peaks = [updated_peaks, current_peak];
-        %             updated_locs = [updated_locs, current_loc];
-        %             updated_locs_idx = [updated_locs_idx, current_loc_idx];
-        %             selected_locs = [selected_locs, current_loc];
-        %         end
-        %     end
-        % end
-        
-
-        % % 去除重叠的波峰区间
-        % function [updated_intervals, updated_peaks, updated_locs, updated_locs_idx] = processIntervals(peak_intervals, peaks, locs, locs_idx)
-        %     updated_intervals = zeros(2, 0); % 初始化为2xN矩阵
-        %     updated_peaks = [];
-        %     updated_locs = [];
-        %     updated_locs_idx = [];
-            
-        %     if ~isempty(peak_intervals)
-        %         peak_intervals = sortrows(peak_intervals')'; % 确保按起始时间排序
-        %         current_interval = peak_intervals(:, 1);
-        %         current_peaks = peaks(1);
-        %         current_locs = locs(1);
-        %         current_locs_idx = locs_idx(1);
-                
-        %         for i = 2:size(peak_intervals, 2)
-        %             if peak_intervals(1, i) <= current_interval(2)
-        %                 current_interval(2) = max(current_interval(2), peak_intervals(2, i));
-        %                 current_peaks = [current_peaks, peaks(i)];
-        %                 current_locs = [current_locs, locs(i)];
-        %                 current_locs_idx = [current_locs_idx, locs_idx(i)];
-        %             else
-        %                 updated_intervals = [updated_intervals, current_interval];
-        %                 updated_peaks = [updated_peaks, max(current_peaks)];
-        %                 updated_locs = [updated_locs, mean(current_locs)];
-        %                 updated_locs_idx = [updated_locs_idx, round(mean(current_locs_idx))];
-                        
-        %                 current_interval = peak_intervals(:, i);
-        %                 current_peaks = peaks(i);
-        %                 current_locs = locs(i);
-        %                 current_locs_idx = locs_idx(i);
-        %             end
-        %         end
-                
-        %         updated_intervals = [updated_intervals, current_interval];
-        %         updated_peaks = [updated_peaks, max(current_peaks)];
-        %         updated_locs = [updated_locs, mean(current_locs)];
-        %         updated_locs_idx = [updated_locs_idx, round(mean(current_locs_idx))];
-        %     end
-        % end
+                % 如果不太近且不重叠，则加入输出列表
+                if ~is_too_close && ~is_overlapping
+                    updated_intervals = [updated_intervals, current_interval];
+                    updated_peaks = [updated_peaks, current_peak];
+                    updated_locs = [updated_locs, current_loc];
+                    updated_locs_idx = [updated_locs_idx, current_loc_idx];
+                    selected_locs = [selected_locs, current_loc];
+                else
+                    % 如果重叠，则在两个区间中选择峰值更高的区间
+                    if is_overlapping
+                        if current_peak > updated_peaks(end)
+                            updated_intervals(:, end) = current_interval;
+                            updated_peaks(end) = current_peak;
+                            updated_locs(end) = current_loc;
+                            updated_locs_idx(end) = current_loc_idx;
+                            selected_locs(end) = current_loc;
+                        end
+                    end
+                end
+            end
+        end
 
         % Function to compute short-time energy
         function energy = computeShortTimeEnergy(signal, windowSize, hopSize)
