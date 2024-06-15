@@ -18,7 +18,6 @@ for i = 1:length(workpiece_ids)
     workpiece_id = workpiece_ids(i);
     measurement_ids = data_loader.getMeasurementIDs(workpiece_id);
 
-    valid_count = 0;
     for j = 1:length(measurement_ids)
         measurement_id = measurement_ids(j);
         data = data_loader.getMeasurementData(workpiece_id, measurement_id);
@@ -42,10 +41,9 @@ for i = 1:length(workpiece_ids)
         [valid_peaks_idx, valid_intervals] = SignalExtract.detectValidIntervals(envelope_signal, time, locs_idx, intervals);
 
         %% 保存结果
-        for k = 1:size(valid_intervals, 2)
-            valid_count = valid_count + 1;
-            start_time = valid_intervals(1, k);
-            end_time = valid_intervals(2, k);
+        for valid_count = 1:size(valid_intervals, 2)
+            start_time = valid_intervals(1, valid_count);
+            end_time = valid_intervals(2, valid_count);
             mask = (data_loader.dataset_df.RelativeTime >= start_time) & (data_loader.dataset_df.RelativeTime <= end_time) & (data_loader.dataset_df.WorkpieceID == workpiece_id) & (data_loader.dataset_df.MeasurementID == measurement_id);
             data_loader.dataset_df.ValidCount(mask) = valid_count;
         end
